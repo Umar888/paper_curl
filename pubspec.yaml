@@ -12,7 +12,8 @@ topics:
 
 environment:
   sdk: ^3.8.0
-  flutter: ">=3.32.0"
+  # live curling relies on the ImageFilter.shader coordinate fixes in 3.44
+  flutter: ">=3.44.0"
 
 dependencies:
   flutter:

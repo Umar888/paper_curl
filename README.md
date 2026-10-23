@@ -5,10 +5,18 @@ follows your finger, the sheet wraps around a cylinder, the back of the page
 is paper with the ink faintly showing through, and soft shadows fall on the
 page underneath. It's rendered in one GPU fragment shader.
 
+**The turning page stays live.** Animations, videos, timers and loaders keep
+running while the page curls, instead of freezing on a screenshot like
+other page-curl packages do.
+
 ![paper_curl demo](https://raw.githubusercontent.com/Umar888/paper_curl/main/doc/demo.gif)
 
 ## Features
 
+- **Live pages.** On Impeller (the default on iOS and Android), the curl
+  shader runs as an image filter over the real page every frame, so
+  nothing on it ever freezes. Without Impeller, a snapshot taken at the
+  start of the turn is curled instead.
 - **Follows the finger.** Grab near the top or bottom corner to lift that
   corner, or the middle of the edge to curl the whole edge. The corner stays
   exactly under your finger.
@@ -69,8 +77,10 @@ controller.jumpToPage(3);
 
 ## How it works
 
-When a drag starts, the page being turned is captured once as an image. For
-every pixel, the fragment shader works backwards from where the pixel is to
+On Impeller, the page is passed through the shader with
+`ImageFilter.shader` every frame. Elsewhere, it's captured once as an image
+when the turn starts. Either way, for every pixel, the fragment shader works
+backwards from where the pixel is to
 the point of the page that ends up there. That point is one of:
 
 1. part of the flat page,
@@ -87,8 +97,11 @@ and unit tested against the same model the shader uses.
 
 ## Notes
 
-- While a page is turning, it shows as a snapshot taken when the turn
-  started, so animations on that page pause until it lands.
+- Requires Flutter 3.44 or newer. Live curling relies on fixes to
+  `ImageFilter.shader` in that release.
+- On renderers without shader image filters (Skia, web), the turning page is
+  a snapshot taken when the turn starts, so its animations pause until it
+  lands. On Impeller it stays live.
 - The pages either side of the current one are built underneath, so a turn
   can start instantly.
 - Vertical scrolling inside a page still works. Horizontal and diagonal

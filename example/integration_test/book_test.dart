@@ -11,8 +11,19 @@ const _slow = bool.fromEnvironment('SLOW');
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  Future<void> hold(WidgetTester tester, int ms) =>
-      tester.pump(Duration(milliseconds: _slow ? ms : ms ~/ 4));
+  // pages animate forever, so wait a fixed time instead of pumpAndSettle
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 60; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+  }
+
+  Future<void> hold(WidgetTester tester, int ms) async {
+    final frames = (_slow ? ms : ms ~/ 4) ~/ 16;
+    for (var i = 0; i < frames; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+  }
 
   // drags along a path in small steps, pausing at [pauseAt] if given
   Future<void> drag(
@@ -33,7 +44,7 @@ void main() {
       if (i == pauseAt) await hold(tester, 900);
     }
     await gesture.up();
-    await tester.pumpAndSettle();
+    await settle(tester);
   }
 
   int page(WidgetTester tester) => tester
@@ -49,7 +60,7 @@ void main() {
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 500)),
     );
-    await tester.pumpAndSettle();
+    await settle(tester);
     await hold(tester, 800);
     final book = tester.getRect(find.byKey(const ValueKey('book')));
 
@@ -86,15 +97,15 @@ void main() {
 
     // 5. buttons
     await tester.tap(find.byKey(const ValueKey('next')));
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(page(tester), 2);
     await hold(tester, 500);
     await tester.tap(find.byKey(const ValueKey('next')));
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(page(tester), 3);
     await hold(tester, 500);
     await tester.tap(find.byKey(const ValueKey('previous')));
-    await tester.pumpAndSettle();
+    await settle(tester);
     expect(page(tester), 2);
     await hold(tester, 800);
   });

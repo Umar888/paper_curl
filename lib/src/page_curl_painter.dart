@@ -39,21 +39,16 @@ class PageCurlPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    shader
-      ..setFloat(0, size.width)
-      ..setFloat(1, size.height)
-      ..setFloat(2, geometry.origin.dx)
-      ..setFloat(3, geometry.origin.dy)
-      ..setFloat(4, geometry.direction.dx)
-      ..setFloat(5, geometry.direction.dy)
-      ..setFloat(6, geometry.radius)
-      ..setFloat(7, backColor.r)
-      ..setFloat(8, backColor.g)
-      ..setFloat(9, backColor.b)
-      ..setFloat(10, backColor.a)
-      ..setFloat(11, ink)
-      ..setFloat(12, shadow)
-      ..setImageSampler(0, image);
+    configureCurlShader(
+      shader,
+      size: size,
+      geometry: geometry,
+      backColor: backColor,
+      ink: ink,
+      shadow: shadow,
+      liveInput: false,
+    );
+    shader.setImageSampler(0, image);
     canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
   }
 
@@ -64,4 +59,38 @@ class PageCurlPainter extends CustomPainter {
       backColor != oldDelegate.backColor ||
       ink != oldDelegate.ink ||
       shadow != oldDelegate.shadow;
+}
+
+/// Sets every uniform of the page curl shader except its image.
+///
+/// [size] is the page size in logical pixels. With [liveInput] the shader
+/// is used through `ImageFilter.shader`, where the engine supplies the
+/// texture size and the page itself.
+void configureCurlShader(
+  ui.FragmentShader shader, {
+  required Size size,
+  required CurlGeometry geometry,
+  required Color backColor,
+  required double ink,
+  required double shadow,
+  required bool liveInput,
+}) {
+  shader
+    // overwritten by the engine when used as an image filter
+    ..setFloat(0, size.width)
+    ..setFloat(1, size.height)
+    ..setFloat(2, geometry.origin.dx)
+    ..setFloat(3, geometry.origin.dy)
+    ..setFloat(4, geometry.direction.dx)
+    ..setFloat(5, geometry.direction.dy)
+    ..setFloat(6, geometry.radius)
+    ..setFloat(7, backColor.r)
+    ..setFloat(8, backColor.g)
+    ..setFloat(9, backColor.b)
+    ..setFloat(10, backColor.a)
+    ..setFloat(11, ink)
+    ..setFloat(12, shadow)
+    ..setFloat(13, size.width)
+    ..setFloat(14, size.height)
+    ..setFloat(15, liveInput ? 1 : 0);
 }

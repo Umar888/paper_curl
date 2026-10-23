@@ -170,15 +170,36 @@ class _BookPageState extends State<BookPage> {
   }
 }
 
-class _ChapterPage extends StatelessWidget {
+class _ChapterPage extends StatefulWidget {
   const _ChapterPage({required this.chapter, required this.number});
 
   final _Chapter chapter;
   final int number;
 
   @override
+  State<_ChapterPage> createState() => _ChapterPageState();
+}
+
+// pages are alive: the illustration turns and a timer ticks, and both keep
+// going while the page curls
+class _ChapterPageState extends State<_ChapterPage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _spin = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 6),
+  )..repeat();
+  final _clock = Stopwatch()..start();
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     const ink = Color(0xFF3B2A1E);
+    final chapter = widget.chapter;
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
       child: Column(
@@ -196,16 +217,51 @@ class _ChapterPage extends StatelessWidget {
                   colors: chapter.colors,
                 ),
               ),
-              child: Icon(
-                chapter.icon,
-                size: 96,
-                color: Colors.white.withValues(alpha: 0.9),
+              child: Stack(
+                children: [
+                  Center(
+                    child: RotationTransition(
+                      turns: _spin,
+                      child: Icon(
+                        chapter.icon,
+                        size: 96,
+                        color: Colors.white.withValues(alpha: 0.9),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    right: 10,
+                    top: 10,
+                    child: AnimatedBuilder(
+                      animation: _spin,
+                      builder: (context, _) => Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          'LIVE ${(_clock.elapsedMilliseconds / 1000).toStringAsFixed(1)}s',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
           const SizedBox(height: 20),
           Text(
-            'CHAPTER $number',
+            'CHAPTER ${widget.number}',
             style: const TextStyle(
               color: Color(0xFF8C5A2B),
               letterSpacing: 2,
@@ -238,7 +294,7 @@ class _ChapterPage extends StatelessWidget {
           ),
           Center(
             child: Text(
-              '— $number —',
+              '— ${widget.number} —',
               style: const TextStyle(color: Color(0xFF8C5A2B)),
             ),
           ),

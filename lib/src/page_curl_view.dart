@@ -132,6 +132,11 @@ class PageCurlView extends StatefulWidget {
   @visibleForTesting
   static bool debugDisableShader = false;
 
+  /// Forces live curling on or off, to test both paths. `null` uses live
+  /// curling wherever the engine supports shader image filters (Impeller).
+  @visibleForTesting
+  static bool? debugLiveCurl;
+
   @override
   State<PageCurlView> createState() => _PageCurlViewState();
 }
@@ -142,7 +147,7 @@ class _Turn {
     required this.page,
     required this.corner,
     required this.touch,
-    required this.image,
+    this.image,
   });
 
   /// Turning towards the next page (true) or back to the previous (false).
@@ -158,7 +163,8 @@ class _Turn {
   /// Where the corner is now.
   Offset touch;
 
-  final ui.Image image;
+  /// Snapshot of the page, only when it can't be curled live.
+  final ui.Image? image;
   Offset dragStart = Offset.zero;
   Offset touchAtDragStart = Offset.zero;
 }
@@ -230,10 +236,20 @@ class _PageCurlViewState extends State<PageCurlView>
   void dispose() {
     widget.controller?._detach(this);
     _settle.dispose();
-    _turn?.image.dispose();
+    _turn?.image?.dispose();
     _shader?.dispose();
     super.dispose();
   }
+
+  // Impeller can run the curl shader as an image filter over the real page
+  // each frame, so the page stays live while it turns. Elsewhere a
+  // snapshot taken at the start of the turn is curled instead.
+  bool get _live =>
+      PageCurlView.debugLiveCurl ?? ui.ImageFilter.isShaderFilterSupported;
+
+  static final ui.ImageFilter _identity = ui.ImageFilter.matrix(
+    Matrix4.identity().storage,
+  );
 
   bool get _hasNext => _page < widget.itemCount - 1;
   bool get _hasPrevious => _page > 0;
@@ -266,8 +282,9 @@ class _PageCurlViewState extends State<PageCurlView>
   bool _begin({required bool forward, required double y}) {
     if (_shader == null || _size.isEmpty) return false;
     final index = forward ? _page : _page - 1;
-    final image = _snapshot(index);
-    if (image == null) return false;
+    // live pages need no snapshot: the shader filters them every frame
+    final image = _live ? null : _snapshot(index);
+    if (!_live && image == null) return false;
     final corner = _cornerFor(y);
     setState(() {
       _turn = _Turn(
@@ -374,7 +391,9 @@ class _PageCurlViewState extends State<PageCurlView>
       _turn = null;
     });
     // the snapshot is still referenced by this frame's painter
-    SchedulerBinding.instance.addPostFrameCallback((_) => turn.image.dispose());
+    SchedulerBinding.instance.addPostFrameCallback(
+      (_) => turn.image?.dispose(),
+    );
     widget.controller?._changed();
     if (complete && _page != from) widget.onPageChanged?.call(_page);
   }
@@ -400,7 +419,7 @@ class _PageCurlViewState extends State<PageCurlView>
     });
     if (turn != null) {
       SchedulerBinding.instance.addPostFrameCallback(
-        (_) => turn.image.dispose(),
+        (_) => turn.image?.dispose(),
       );
     }
     widget.controller?._changed();
@@ -408,20 +427,26 @@ class _PageCurlViewState extends State<PageCurlView>
 
   // ------------------------------------------------------------- building
 
-  Widget _pageAt(int index, {bool visible = true}) {
+  // The wrapper widgets never change, only their settings, so a page is
+  // never remounted when a turn starts or ends and keeps all its state.
+  Widget _pageAt(int index, {bool visible = true, ui.ImageFilter? curl}) {
     final color = widget.pageColor ?? Theme.of(context).colorScheme.surface;
     return Positioned.fill(
       key: ValueKey(index),
-      child: Visibility(
-        visible: visible,
-        maintainState: true,
-        maintainAnimation: true,
-        maintainSize: true,
-        child: RepaintBoundary(
-          key: _keyFor(index),
-          child: ColoredBox(
-            color: color,
-            child: widget.itemBuilder(context, index),
+      child: ImageFiltered(
+        enabled: curl != null,
+        imageFilter: curl ?? _identity,
+        child: Visibility(
+          visible: visible,
+          maintainState: true,
+          maintainAnimation: true,
+          maintainSize: true,
+          child: RepaintBoundary(
+            key: _keyFor(index),
+            child: ColoredBox(
+              color: color,
+              child: widget.itemBuilder(context, index),
+            ),
           ),
         ),
       ),
@@ -451,18 +476,32 @@ class _PageCurlViewState extends State<PageCurlView>
           if (_hasPrevious) children.add(_pageAt(_page - 1));
           if (_hasNext) children.add(_pageAt(_page + 1));
           children.add(_pageAt(_page));
+        } else if (turn.image == null) {
+          // live: the turning page itself is drawn through the curl shader
+          final curl = _liveCurl(turn, shader);
+          if (turn.forward) {
+            if (_hasPrevious) children.add(_pageAt(_page - 1));
+            children
+              ..add(_pageAt(_page + 1))
+              ..add(_pageAt(_page, curl: curl));
+          } else {
+            if (_hasNext) children.add(_pageAt(_page + 1));
+            children
+              ..add(_pageAt(_page))
+              ..add(_pageAt(_page - 1, curl: curl));
+          }
         } else if (turn.forward) {
           if (_hasPrevious) children.add(_pageAt(_page - 1));
           children
             ..add(_pageAt(_page + 1))
             ..add(_pageAt(_page, visible: false))
-            ..add(_curl(turn, shader));
+            ..add(_curl(turn, shader, turn.image!));
         } else {
           if (_hasNext) children.add(_pageAt(_page + 1));
           children
             ..add(_pageAt(_page - 1, visible: false))
             ..add(_pageAt(_page))
-            ..add(_curl(turn, shader));
+            ..add(_curl(turn, shader, turn.image!));
         }
 
         final stack = ClipRect(child: Stack(children: children));
@@ -483,7 +522,7 @@ class _PageCurlViewState extends State<PageCurlView>
     );
   }
 
-  Widget _curl(_Turn turn, ui.FragmentShader shader) {
+  ({CurlGeometry geometry, double shadow}) _shape(_Turn turn) {
     final geometry = CurlGeometry.fromCorner(
       size: _size,
       corner: turn.corner,
@@ -498,17 +537,36 @@ class _PageCurlViewState extends State<PageCurlView>
             .distance /
         (2 * _size.width);
     final fade = ((1 - travelled) / 0.2).clamp(0.0, 1.0);
+    return (geometry: geometry, shadow: widget.shadow * fade);
+  }
+
+  ui.ImageFilter _liveCurl(_Turn turn, ui.FragmentShader shader) {
+    final shape = _shape(turn);
+    configureCurlShader(
+      shader,
+      size: _size,
+      geometry: shape.geometry,
+      backColor: _backColor,
+      ink: widget.ink,
+      shadow: shape.shadow,
+      liveInput: true,
+    );
+    return ui.ImageFilter.shader(shader);
+  }
+
+  Widget _curl(_Turn turn, ui.FragmentShader shader, ui.Image image) {
+    final shape = _shape(turn);
     return Positioned.fill(
       key: const ValueKey('curl'),
       child: IgnorePointer(
         child: CustomPaint(
           painter: PageCurlPainter(
             shader: shader,
-            image: turn.image,
-            geometry: geometry,
+            image: image,
+            geometry: shape.geometry,
             backColor: _backColor,
             ink: widget.ink,
-            shadow: widget.shadow * fade,
+            shadow: shape.shadow,
           ),
         ),
       ),
