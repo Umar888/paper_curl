@@ -62,7 +62,7 @@ void main() {
     );
     await settle(tester);
     await hold(tester, 800);
-    final book = tester.getRect(find.byKey(const ValueKey('book')));
+    final book = tester.getRect(find.byType(PageCurlView));
 
     // 1. lift the bottom corner, hold it mid-curl, then turn
     await drag(tester, book.bottomRight + const Offset(-8, -8), [

@@ -11,6 +11,8 @@ other page-curl packages do.
 
 ![paper_curl demo](https://raw.githubusercontent.com/Umar888/paper_curl/main/doc/demo.gif)
 
+▶ [Watch the full demo video](https://github.com/Umar888/paper_curl/blob/main/doc/demo.mp4) (1080p, 33 seconds)
+
 ## Features
 
 - **Live pages.** On Impeller (the default on iOS and Android), the curl

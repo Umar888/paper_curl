@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:paper_curl/paper_curl.dart';
 
+import 'demo_driver.dart';
+
 void main() => runApp(const BookApp());
 
 class BookApp extends StatelessWidget {
@@ -74,11 +76,21 @@ class BookPage extends StatefulWidget {
 
 class _BookPageState extends State<BookPage> {
   final _controller = PageCurlController();
+  final _bookKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
     _controller.addListener(() => setState(() {}));
+    // flutter run --dart-define=DEMO=true plays a scripted demo for videos
+    if (const bool.fromEnvironment('DEMO')) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => Future<void>.delayed(
+          const Duration(seconds: 2),
+          DemoDriver(controller: _controller, bookKey: _bookKey).run,
+        ),
+      );
+    }
   }
 
   @override
@@ -127,7 +139,7 @@ class _BookPageState extends State<BookPage> {
                     left: Radius.circular(4),
                   ),
                   child: PageCurlView(
-                    key: const ValueKey('book'),
+                    key: _bookKey,
                     controller: _controller,
                     itemCount: _chapters.length,
                     pageColor: paper,
