@@ -1,0 +1,29 @@
+name: paper_curl
+description: Realistic page curl for Flutter. A GPU shader turns pages like a real book, with a curl that follows your finger, paper backs with ink showing through and soft shadows.
+version: 0.1.0
+repository: https://github.com/Umar888/paper_curl
+issue_tracker: https://github.com/Umar888/paper_curl/issues
+topics:
+  - animation
+  - shader
+  - book
+  - page-turn
+  - ui
+
+environment:
+  sdk: ^3.8.0
+  flutter: ">=3.32.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+
+flutter:
+  shaders:
+    - shaders/page_curl.frag
